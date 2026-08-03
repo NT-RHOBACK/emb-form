@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Embroidery Request Form &mdash; Admin (Noelle)</title>
+<title>Embroidery Request Form</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <!--
   ============================================================================
-  EMBROIDERY REQUEST FORM — ADMIN VERSION (Noelle Thompson)
+  EMBROIDERY REQUEST FORM (rep self-serve)
   ============================================================================
   On submit, this validates and opens a pre-filled email draft (mailto:) to
   Noelle. All submission data is assembled into a `payload` object; see
@@ -393,7 +393,7 @@
 
 <script>
 // ============================================================================
-//  EMBROIDERY REQUEST FORM — ADMIN VERSION (front-end only, not connected)
+//  EMBROIDERY REQUEST FORM (rep self-serve) — emails Noelle via mailto
 // ============================================================================
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function val(id){ var el = document.getElementById(id); return el ? (el.value||'').trim() : ''; }
