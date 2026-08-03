@@ -367,6 +367,12 @@
       <div style="font-size:12px;color:var(--text-s);margin-bottom:6px">Placement details, special instructions, garment style info, or any other context for the embroidery team.</div>
       <textarea class="req-input req-textarea" id="reqNotes" placeholder="e.g., Logo goes on left chest, match PMS 281 navy, customer wants 3.5in wide max&hellip;" style="min-height:80px"></textarea>
 
+      <!-- Also send to (optional extra recipients) -->
+      <div class="req-form-section">Also Send To</div>
+      <div style="font-size:13px;color:var(--text-s);font-style:italic;margin-bottom:4px">Optional</div>
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:6px">This request always emails Noelle and the standard team list. Add any extra one-off recipients here, separated by commas.</div>
+      <input type="text" class="req-input" id="reqExtraTo" placeholder="e.g., jane@rhoback.com, vendor@example.com">
+
       <!-- Buttons -->
       <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid var(--brd-s)">
         <button class="req-clear-btn" onclick="clearReqForm()">Clear</button>
@@ -381,7 +387,7 @@
       <div class="success-check">&#10003;</div>
       <h2 class="success-title">Request Submitted</h2>
       <p class="success-detail" id="successDetail"></p>
-      <p class="success-note">This is a front-end demo &mdash; the request has not yet been sent anywhere. Once connected to NetSuite, submitting will create the request record and notify the embroidery team automatically.</p>
+      <p class="success-note">A pre-filled email draft should have opened in your mail app. <strong>Attach the logo / DST files and click Send</strong> to submit the request &mdash; the email is not sent until you do. If no draft opened, check that a default mail app is set.</p>
       <button class="req-submit-btn" onclick="resetToForm()">Submit Another Request</button>
     </div>
   </section>
@@ -658,19 +664,66 @@ function collectPayload(){
 }
 
 // ============================================================================
-//  INTEGRATION POINT — NOT YET CONNECTED
+//  EMAIL DELIVERY (mailto:)
 //  ------------------------------------------------------------------
-//  This form is intentionally front-end only. Wire this function up to the
-//  backend / NetSuite here. Confirmed options:
-//    • NetSuite SuiteFlow: "After Record Submit" → Send Email action (+template)
-//    • NetSuite Online Form: "Notify by Email" field
-//    • Or create a custom record via SuiteScript / REST, then notify.
-//  `payload` (logged below) is the full submission data model from
-//  collectPayload(). Return true on success.
+//  On submit, this builds a fixed-format plain-text email and opens it as a
+//  pre-filled draft in the user's default mail client (Outlook). The user
+//  reviews, attaches the actual logo/DST files (mailto cannot carry
+//  attachments), and clicks Send.
+//
+//  RECIPIENTS:
+//    • PRIMARY_TO  — always the "To:" address.
+//    • ALWAYS_CC   — fixed list always CC'd (the standard team). EDIT THIS.
+//    • plus any one-off addresses typed into the "Also Send To" field.
+//
+//  A later upgrade path (NetSuite SuiteFlow send-email, or a REST record) can
+//  replace openMailDraft() without touching the rest of the form.
 // ============================================================================
-function submitToBackend(payload){
-  console.log('[EMB REQUEST] submission payload (not sent — front-end only):', payload);
+var PRIMARY_TO = 'noelle.thompson@rhoback.com';
+var ALWAYS_CC  = [
+  // TODO: add the standard team addresses here, e.g.
+  // 'embroidery@rhoback.com', 'production@rhoback.com'
+];
+
+function _emailBody(p){
+  var L = [];
+  L.push('NEW EMBROIDERY REQUEST');
+  L.push('');
+  L.push('Submitted By: ' + (p.submittedBy || ''));
+  L.push('On Behalf of Rep: ' + (p.onBehalfOfRep || ''));
+  L.push('Account: ' + (p.account || ''));
+  L.push('Logo / Design Name: ' + (p.logoName || ''));
+  L.push('Request Type: ' + (p.requestType === 'sewout' ? 'Sew-Out' : p.requestType === 'digitize' ? 'Digitize' : ''));
+  L.push('Size: ' + (p.size || ''));
+  if (p.requestType === 'digitize') L.push('Fee Status: ' + (p.feeStatus || ''));
+  L.push('Thread Colors: ' + (p.threadCount || ''));
+  L.push('Color Type: ' + (p.colorType || ''));
+  L.push('Color Notes: ' + (p.colorNotes || ''));
+  L.push('Urgency: ' + (p.urgency || ''));
+  L.push('Start Date: ' + (p.startDate || (p.hasStartDate === 'no' ? 'None (complete ASAP)' : '')) + (p.startDateAutoSet ? ' (auto-set, urgent)' : ''));
+  L.push('Files (attach manually): ' + (p.files && p.files.length ? p.files.map(function(f){ return f.name; }).join(', ') : 'none listed'));
+  L.push('Notes: ' + (p.notes || ''));
+  L.push('');
+  L.push('Submitted: ' + p.submittedAt);
+  return L.join('\n');
+}
+
+function openMailDraft(payload){
+  // one-off recipients from the optional field
+  var extra = (val('reqExtraTo') || '').split(/[,;]/).map(function(s){ return s.trim(); }).filter(Boolean);
+  var cc = ALWAYS_CC.concat(extra);
+  var subject = 'Embroidery Request — ' + (payload.account || 'Account') + ' — ' + (payload.urgency || 'request');
+  var url = 'mailto:' + encodeURIComponent(PRIMARY_TO)
+          + '?subject=' + encodeURIComponent(subject)
+          + (cc.length ? '&cc=' + encodeURIComponent(cc.join(',')) : '')
+          + '&body=' + encodeURIComponent(_emailBody(payload));
+  window.location.href = url;
+  console.log('[EMB REQUEST] opened mail draft. payload:', payload);
   return true;
+}
+
+function submitToBackend(payload){
+  return openMailDraft(payload);
 }
 
 function confirmSubmit(){
@@ -683,7 +736,7 @@ function confirmSubmit(){
     document.getElementById('formView').style.display='none';
     document.getElementById('successView').style.display='';
     window.scrollTo(0,0);
-    toast('Request submitted (demo)');
+    toast('Email draft opened — attach files & send');
   }
 }
 function resetToForm(){
