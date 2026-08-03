@@ -367,12 +367,6 @@
       <div style="font-size:12px;color:var(--text-s);margin-bottom:6px">Placement details, special instructions, garment style info, or any other context for the embroidery team.</div>
       <textarea class="req-input req-textarea" id="reqNotes" placeholder="e.g., Logo goes on left chest, match PMS 281 navy, customer wants 3.5in wide max&hellip;" style="min-height:80px"></textarea>
 
-      <!-- Also send to (optional extra recipients) -->
-      <div class="req-form-section">Also Send To</div>
-      <div style="font-size:13px;color:var(--text-s);font-style:italic;margin-bottom:4px">Optional</div>
-      <div style="font-size:12px;color:var(--text-s);margin-bottom:6px">This request always emails Noelle and the standard team list. Add any extra one-off recipients here, separated by commas.</div>
-      <input type="text" class="req-input" id="reqExtraTo" placeholder="e.g., jane@rhoback.com, vendor@example.com">
-
       <!-- Buttons -->
       <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid var(--brd-s)">
         <button class="req-clear-btn" onclick="clearReqForm()">Clear</button>
@@ -672,18 +666,12 @@ function collectPayload(){
 //  attachments), and clicks Send.
 //
 //  RECIPIENTS:
-//    • PRIMARY_TO  — always the "To:" address.
-//    • ALWAYS_CC   — fixed list always CC'd (the standard team). EDIT THIS.
-//    • plus any one-off addresses typed into the "Also Send To" field.
+//    • PRIMARY_TO  — the "To:" address.
 //
 //  A later upgrade path (NetSuite SuiteFlow send-email, or a REST record) can
 //  replace openMailDraft() without touching the rest of the form.
 // ============================================================================
 var PRIMARY_TO = 'noelle.thompson@rhoback.com';
-var ALWAYS_CC  = [
-  // TODO: add the standard team addresses here, e.g.
-  // 'embroidery@rhoback.com', 'production@rhoback.com'
-];
 
 function _emailBody(p){
   var L = [];
@@ -709,13 +697,9 @@ function _emailBody(p){
 }
 
 function openMailDraft(payload){
-  // one-off recipients from the optional field
-  var extra = (val('reqExtraTo') || '').split(/[,;]/).map(function(s){ return s.trim(); }).filter(Boolean);
-  var cc = ALWAYS_CC.concat(extra);
   var subject = 'Embroidery Request — ' + (payload.account || 'Account') + ' — ' + (payload.urgency || 'request');
   var url = 'mailto:' + encodeURIComponent(PRIMARY_TO)
           + '?subject=' + encodeURIComponent(subject)
-          + (cc.length ? '&cc=' + encodeURIComponent(cc.join(',')) : '')
           + '&body=' + encodeURIComponent(_emailBody(payload));
   window.location.href = url;
   console.log('[EMB REQUEST] opened mail draft. payload:', payload);
