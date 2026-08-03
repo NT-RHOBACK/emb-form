@@ -11,20 +11,13 @@
   ============================================================================
   EMBROIDERY REQUEST FORM — ADMIN VERSION (Noelle Thompson)
   ============================================================================
-  This is a FRONT-END ONLY form. It is intentionally NOT connected to any
-  backend, email, or NetSuite. On submit it validates and shows a success
-  screen. All submission data is assembled into a `payload` object and logged
-  to the console (see submitToBackend() near the bottom — that is the single
-  INTEGRATION POINT to wire up NetSuite / email later).
+  On submit, this validates and opens a pre-filled email draft (mailto:) to
+  Noelle. All submission data is assembled into a `payload` object; see
+  submitToBackend() → openMailDraft() near the bottom — that is the single
+  INTEGRATION POINT to swap for NetSuite / a real backend later.
 
-  This is the ADMIN variant: submitter is fixed to Noelle, who selects which
-  sales rep she is "submitting on behalf of". A separate REP variant
-  (embroidery-request-form-rep-v1.html) locks the submitter to the logged-in
-  rep and hides the on-behalf selector.
-
-  PLACEHOLDERS TO REPLACE (search for "PLACEHOLDER"):
-    • REP_ACCOUNTS  — sample reps → accounts map; replace with a NetSuite lookup
-    • submitToBackend() — the integration stub where the record/email is sent
+  The submitting rep fills in their own Name + Email, a free-text Account,
+  and the logo/request details.
   ============================================================================
 -->
 <style>
@@ -169,19 +162,16 @@
         <strong>&#9888; One form per logo, please.</strong> Submit a separate request for each individual logo &mdash; each one is tracked as its own task. Do not combine multiple logos in a single submission.
       </div>
 
-      <!-- Who is submitting (ADMIN: Noelle submits on behalf of a rep) -->
+      <!-- Who is submitting (rep enters their own name + email) -->
       <div class="req-form-section">Who Is Submitting</div>
       <div class="req-field-row">
         <div class="req-field">
-          <label>Submitted By</label>
-          <input class="req-input" id="reqSubmittedBy" value="Noelle Thompson" readonly style="color:var(--text-s);background:var(--bg)">
+          <label>Your Name <span class="req-req">*</span></label>
+          <input class="req-input" id="reqSubmittedBy" type="text" placeholder="e.g. Jane Smith">
         </div>
-        <div class="req-field" id="reqOnBehalfField">
-          <label>Submitting on Behalf of <span class="req-req">*</span></label>
-          <select class="req-input" id="reqRep" onchange="populateAccounts()">
-            <option value="">Select a rep...</option>
-            <!-- PLACEHOLDER: rep list is populated from REP_ACCOUNTS in the script (sample data). -->
-          </select>
+        <div class="req-field">
+          <label>Your Email <span class="req-req">*</span></label>
+          <input class="req-input" id="reqSubmitterEmail" type="email" placeholder="e.g. jane@rhoback.com">
         </div>
       </div>
 
@@ -190,7 +180,7 @@
       <div class="req-field-row">
         <div class="req-field">
           <label>Account <span class="req-req">*</span></label>
-          <select class="req-input" id="reqAccount"><option value="">Select a rep first...</option></select>
+          <input class="req-input" id="reqAccount" type="text" placeholder="e.g. Mountain Peak Co.">
         </div>
         <div class="req-field">
           <label>Logo / Design Name <span class="req-req">*</span></label>
@@ -418,12 +408,6 @@ function toast(msg){
 //  Maps each sales rep to the accounts assigned to them. In production this
 //  should be pulled from NetSuite (reps and their customers), not hardcoded.
 // ----------------------------------------------------------------------------
-var REP_ACCOUNTS = {
-  'Sales Rep One':   ['Sample Account A', 'Sample Account B', 'Sample Account C'],
-  'Sales Rep Two':   ['Sample Account D', 'Sample Account E'],
-  'Sales Rep Three': ['Sample Account F', 'Sample Account G', 'Sample Account H']
-};
-
 var _reqType=null, _reqColorType=null, _reqStartDate=null, _noUrgency=null;
 var _colorHints={
   club:{hint:'List all club colors using PMS colors or thread color names/numbers (e.g. Navy PMS 289, White). All converted to closest Madeira Polyneon 40 weight equivalent.',ph:'e.g. Navy PMS 289, White, Gold PMS 124'},
@@ -433,8 +417,9 @@ var _colorHints={
 };
 var _countWords={'1 color':'One','2 colors':'Two','3 colors':'Three','4 colors':'Four','5 colors':'Five','6+ colors':'Six+','Varies':'Varies','N/A — Club Colors':''};
 
-// The rep the request is for = the "on behalf of" selection (admin submits for a rep).
-function effectiveRep(){ return val('reqRep'); }
+// Submitter identity — the rep fills in their own name + email.
+function submitterName(){ return val('reqSubmittedBy'); }
+function submitterEmail(){ return val('reqSubmitterEmail'); }
 
 function numericInput(el){ el.value = el.value.replace(/[^\d.]/g,'').replace(/(\..*?)\..*/g,'$1'); }
 function formatDimension(el){ var v = parseFloat(el.value); if(!isNaN(v) && el.value!=='') el.value = v.toFixed(2); }
@@ -531,19 +516,6 @@ function computeUrgentTarget(){
 function fmtDate(d){ return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); }
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 // Populate the Account dropdown from the selected rep's accounts (PLACEHOLDER data).
-function populateAccounts(){
-  var rep=effectiveRep();
-  var acctSel=document.getElementById('reqAccount');
-  if(!rep){ acctSel.innerHTML='<option value="">Select a rep first...</option>'; return; }
-  var accounts=REP_ACCOUNTS[rep]||[];
-  acctSel.innerHTML='<option value="">Select account...</option>'+accounts.map(function(a){ return '<option>'+esc(a)+'</option>'; }).join('');
-}
-// Populate the rep dropdown from REP_ACCOUNTS keys (PLACEHOLDER data).
-function populateRepDropdown(){
-  var sel=document.getElementById('reqRep');
-  if(!sel) return;
-  sel.innerHTML='<option value="">Select a rep...</option>'+Object.keys(REP_ACCOUNTS).map(function(r){ return '<option>'+esc(r)+'</option>'; }).join('');
-}
 function handleReqFiles(input){
   var list=document.getElementById('reqFileList');
   list.innerHTML='';
@@ -562,16 +534,17 @@ function clearReqForm(){
   var chip=document.getElementById('reqSummaryChip'); if(chip) chip.style.display='none';
   var warn=document.getElementById('reqStartDateWarning'); if(warn) warn.style.display='none';
   var wknd=document.getElementById('reqWeekendWarning'); if(wknd) wknd.style.display='none';
-  ['reqRep','reqLogo','reqHeight','reqWidth','reqThreadCount','reqColorNotes','reqStartDate','reqNotes'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['reqSubmittedBy','reqSubmitterEmail','reqAccount','reqLogo','reqHeight','reqWidth','reqThreadCount','reqColorNotes','reqStartDate','reqNotes'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   var tcEl=document.getElementById('reqThreadCount'); if(tcEl){ tcEl.disabled=false; tcEl.style.background=''; tcEl.style.color=''; }
   var tcHint=document.getElementById('reqThreadCountHint'); if(tcHint) tcHint.style.display='none';
   var feeSel=document.getElementById('reqFeeStatus'); if(feeSel) feeSel.value='';
   var fi=document.getElementById('reqFileInput'); if(fi) fi.value='';
   document.getElementById('reqFileList').innerHTML='';
-  populateAccounts();
 }
 function _reqChecklist(){
-  var rep=effectiveRep();
+  var subName=submitterName();
+  var subEmail=submitterEmail();
+  var emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subEmail);
   var account=val('reqAccount');
   var logo=val('reqLogo');
   var hVal=val('reqHeight');
@@ -586,7 +559,8 @@ function _reqChecklist(){
   var feeStatus=val('reqFeeStatus');
   var files=(document.getElementById('reqFileInput')||{}).files||[];
   var items=[
-    {label:'Sales Rep', filled:!!rep, value:rep},
+    {label:'Your Name', filled:!!subName, value:subName},
+    {label:'Your Email', filled:emailOk, value:subEmail ? (emailOk?subEmail:subEmail+' (invalid)') : ''},
     {label:'Account', filled:!!account, value:account},
     {label:'Logo / Design Name', filled:!!logo, value:logo},
     {label:'Request Type', filled:!!_reqType, value:reqTypeLabel},
@@ -629,8 +603,8 @@ function collectPayload(){
   var hVal=val('reqHeight'), wVal=val('reqWidth');
   var files=(document.getElementById('reqFileInput')||{}).files||[];
   return {
-    submittedBy: 'Noelle Thompson',          // ADMIN variant: fixed submitter
-    onBehalfOfRep: effectiveRep(),           // the rep the request is for
+    submittedBy: submitterName(),            // rep enters their own name
+    submitterEmail: submitterEmail(),        // rep enters their own email
     account: val('reqAccount'),
     logoName: val('reqLogo'),
     requestType: _reqType,                   // 'sewout' | 'digitize'
@@ -677,8 +651,8 @@ function _emailBody(p){
   var L = [];
   L.push('NEW EMBROIDERY REQUEST');
   L.push('');
-  L.push('Submitted By: ' + (p.submittedBy || ''));
-  L.push('On Behalf of Rep: ' + (p.onBehalfOfRep || ''));
+  L.push('Rep Name: ' + (p.submittedBy || ''));
+  L.push('Rep Email: ' + (p.submitterEmail || ''));
   L.push('Account: ' + (p.account || ''));
   L.push('Logo / Design Name: ' + (p.logoName || ''));
   L.push('Request Type: ' + (p.requestType === 'sewout' ? 'Sew-Out' : p.requestType === 'digitize' ? 'Digitize' : ''));
@@ -716,7 +690,7 @@ function confirmSubmit(){
   closeReviewModal();
   if(ok){
     var detail=document.getElementById('successDetail');
-    detail.innerHTML='<strong>'+esc(payload.logoName||'Logo')+'</strong> for <strong>'+esc(payload.account||'account')+'</strong> ('+esc(payload.onBehalfOfRep||'rep')+') has been logged.';
+    detail.innerHTML='<strong>'+esc(payload.logoName||'Logo')+'</strong> for <strong>'+esc(payload.account||'account')+'</strong> (submitted by '+esc(payload.submittedBy||'rep')+') is ready to send.';
     document.getElementById('formView').style.display='none';
     document.getElementById('successView').style.display='';
     window.scrollTo(0,0);
@@ -731,8 +705,6 @@ function resetToForm(){
 }
 
 // ---- Init ----
-populateRepDropdown();
-populateAccounts();
 (function(){ var el=document.getElementById('headerDate'); if(el){ el.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); } })();
 </script>
 </body>
