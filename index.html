@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embroidery Request Form &mdash; Admin (Noelle)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<!--
+  ============================================================================
+  EMBROIDERY REQUEST FORM — ADMIN VERSION (Noelle Thompson)
+  ============================================================================
+  This is a FRONT-END ONLY form. It is intentionally NOT connected to any
+  backend, email, or NetSuite. On submit it validates and shows a success
+  screen. All submission data is assembled into a `payload` object and logged
+  to the console (see submitToBackend() near the bottom — that is the single
+  INTEGRATION POINT to wire up NetSuite / email later).
+
+  This is the ADMIN variant: submitter is fixed to Noelle, who selects which
+  sales rep she is "submitting on behalf of". A separate REP variant
+  (embroidery-request-form-rep-v1.html) locks the submitter to the logged-in
+  rep and hides the on-behalf selector.
+
+  PLACEHOLDERS TO REPLACE (search for "PLACEHOLDER"):
+    • REP_ACCOUNTS  — sample reps → accounts map; replace with a NetSuite lookup
+    • submitToBackend() — the integration stub where the record/email is sent
+  ============================================================================
+-->
+<style>
+  * { box-sizing: border-box; }
+  :root{
+    --navy:#1c2340; --red:#BF2033; --slate:#49516C; --steel:#8892a0;
+    --sage:#9ab594;--sage-l:#d4e6d0;--sage-p:#f0f7ee;--sage-d:#3d6840;
+    --clay:#c4976e;--clay-l:#ecddd0;--clay-p:#faf4ee;
+    --blush:#cda0a0;--blush-l:#ecdada;--blush-p:#fdf6f6;
+    --sky:#8ab4c8;--sky-l:#d0e6f0;--sky-p:#eef6fb;
+    --lav:#b0a0c8;--lav-l:#e0d8f0;--lav-p:#f4f0fa;
+    --amb:#c8aa6e;--amb-l:#f0e4c0;--amb-p:#fdf8ee;
+    --stone:#8c93aa;--stone-l:#cdd0dc;--stone-p:#f0f1f5;
+    --coral:#c03030;--coral-l:#e8c0c0;--coral-p:#fdf0f0;
+    --tangerine:#c87020;--tangerine-l:#e8cc98;--tangerine-p:#fdf4e8;
+    --teal:#509aaa;--teal-l:#b8dae4;--teal-p:#eaf4f8;
+    --gold:#b09040;--gold-l:#e4d4a0;--gold-p:#fdf9ea;
+    --bg:#f5f7fb; --surf:#fff; --brd:#e2e6ef; --brd-s:#eef0f6; --brd-d:#d1d6de;
+    --text:#1c2340; --text-m:#49516C; --text-s:#8892a0; --accent:#2b6cb0;
+    --r:12px; --rs:8px;
+  }
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Aptos','Aptos Display','Segoe UI','DM Sans',sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.45;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  .top-bar{background:var(--navy);color:rgba(255,255,255,.9);text-align:center;padding:8px 24px;font-size:13px;font-weight:500;letter-spacing:3px;text-transform:uppercase}
+  .header{background:var(--surf);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--brd)}
+  .header-brand{display:flex;align-items:center;gap:10px}
+  .ridge{display:flex;gap:3px}
+  .ridge span{width:3px;height:22px;border-radius:1px}
+  .r-red{background:var(--red)}.r-navy{background:var(--navy)}
+  .header-title{font-size:13px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--navy)}
+  .header-right{display:flex;align-items:center;gap:16px}
+  .header-date{font-size:15px;color:var(--text-s);font-weight:400}
+
+  main{ max-width:1120px; margin:0 auto; padding:24px 20px 60px; }
+  .req-req{color:#883030;margin-left:2px}
+
+  .req-form-wrap{max-width:840px;margin:0 auto;padding:36px 36px 32px;background:var(--surf);border:1px solid var(--brd-s);border-radius:14px;box-shadow:0 4px 20px rgba(28,35,64,.06)}
+  .req-form-section{display:inline-flex;align-items:center;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:10px 18px;border-left:6px solid var(--navy);border-radius:4px;margin:28px 0 16px;background:#eef0f6;color:var(--navy)}
+  .req-form-section:first-child{margin-top:0}
+  .req-sub-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .req-sub-row .req-form-section{margin-top:0;margin-bottom:0}
+  .req-summary-chip{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:700;color:#286070;background:var(--teal-p);border:2px solid var(--teal);padding:8px 16px;border-radius:8px}
+  .req-side-panel{position:absolute;top:0;right:-340px;width:300px;max-width:300px;background:var(--teal-p);border:2px solid var(--teal);border-radius:12px;padding:18px 20px;box-shadow:0 10px 32px rgba(40,96,112,.22);z-index:5;display:none;line-height:1.5}
+  .req-side-panel.show{display:block}
+  .req-side-panel::before{content:'';position:absolute;left:-14px;top:34px;width:0;height:0;border-style:solid;border-width:10px 14px 10px 0;border-color:transparent var(--teal) transparent transparent}
+  .req-side-panel-icon{font-size:20px;color:var(--teal);margin-bottom:8px;font-weight:700}
+  .req-side-panel-text{font-size:15px;color:#1c3a48;font-weight:500}
+  @media(max-width:1280px){.req-side-panel{position:static;right:auto;width:100%;max-width:none;margin:8px 0 12px;box-shadow:none}.req-side-panel::before{display:none}}
+  .req-field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .req-field-row.full{grid-template-columns:1fr}
+  .req-field label{font-size:14px;font-weight:600;color:var(--text-m);display:block;margin-bottom:6px}
+  .req-field label .req-req{color:#883030;margin-left:2px}
+  .req-input{width:100%;box-sizing:border-box;padding:10px 14px;font-size:16px;border:1px solid var(--brd);border-radius:var(--rs);background:var(--surf);color:var(--text);font-family:inherit}
+  .req-input:focus{outline:none;border-color:var(--navy)}
+  .req-textarea{min-height:90px;resize:vertical}
+  .req-card-group{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .req-card{padding:18px 20px;border:2px solid var(--brd);border-radius:var(--rs);cursor:pointer;transition:border-color .15s,background .15s;background:var(--surf)}
+  .req-card:hover{border-color:var(--slate)}
+  .req-card.selected{background:#d6dceb;border-color:var(--navy)}
+  .req-card-title{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px;line-height:1.3}
+  .req-card-when{display:block;font-size:14px;font-weight:700;color:#286070;background:var(--teal-p);border:1px solid var(--teal-l);padding:9px 12px;border-radius:var(--rs);margin-bottom:10px;line-height:1.4}
+  .req-card-desc{font-size:14px;color:var(--text-m);line-height:1.5}
+  .req-cond-block{background:var(--lav-p);border:1px solid var(--lav-l);border-radius:var(--rs);padding:18px 20px;margin-bottom:16px}
+  .req-cond-block.amber{background:var(--amb-p);border-color:var(--amb-l)}
+  .req-cond-label{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-m);margin-bottom:12px}
+  .req-drop-zone{border:2px dashed var(--brd);border-radius:var(--rs);padding:36px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:var(--surf)}
+  .req-drop-zone:hover{border-color:var(--navy);background:var(--bg)}
+  .req-drop-icon{font-size:28px;margin-bottom:8px;opacity:.35}
+  .req-drop-label{font-size:15px;color:var(--text-m);font-weight:500}
+  .req-drop-sub{font-size:13px;color:var(--text-s);margin-top:4px}
+  .req-yes-no{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .req-yn-card{padding:8px 18px;border:2px solid var(--brd);border-radius:var(--rs);cursor:pointer;text-align:center;background:var(--surf);transition:border-color .15s,background .15s}
+  .req-yn-card:hover{border-color:var(--slate)}
+  .req-yn-card.selected{background:#d6dceb;border-color:var(--navy)}
+  .req-yn-title{font-size:18px;font-weight:700;color:var(--navy);margin-bottom:0}
+  .req-yn-sub{display:block;font-size:14px;font-weight:700;line-height:1.4;border-radius:var(--rs);padding:9px 12px;text-align:left}
+  .req-yn-sub.yn-yes{background:var(--sage-p);border:1px solid var(--sage-l);color:var(--sage-d)}
+  .req-yn-sub.yn-no{background:var(--amb-p);border:1px solid var(--amb-l);color:#7a5a20}
+  .req-yn-card.selected .req-yn-title{color:var(--navy)}
+  .req-file-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);border:1px solid var(--brd-s);border-radius:var(--rs);margin-bottom:5px;font-size:14px}
+  .req-submit-btn{padding:10px 22px;font-family:inherit;font-size:14px;font-weight:700;border:none;border-radius:var(--rs);cursor:pointer;background:var(--navy);color:#fff;letter-spacing:.02em}
+  .req-submit-btn:hover{background:#2e3d6e}
+  .req-clear-btn{padding:10px 20px;font-family:inherit;font-size:14px;font-weight:600;border:1px solid var(--brd);border-radius:var(--rs);cursor:pointer;background:var(--surf);color:var(--text)}
+  .req-clear-btn:hover{background:var(--bg)}
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,28,40,.5);display:none;align-items:center;justify-content:center;z-index:150;padding:24px}
+  .modal-overlay.open{display:flex}
+  .rev-modal{background:var(--surf);border-radius:14px;padding:34px 38px 28px;width:620px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .rev-modal-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--navy);margin-bottom:6px}
+  .rev-modal-sub{font-size:17px;color:var(--text-m);margin-bottom:18px;line-height:1.5}
+  .rev-list{display:flex;flex-direction:column;gap:0}
+  .rev-row{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--brd-s);font-size:18px}
+  .rev-row:last-child{border-bottom:none}
+  .rev-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0}
+  .rev-icon.ok{background:#35b16a;color:#fff}
+  .rev-icon.miss{background:none;font-size:22px;line-height:1}
+  .rev-row.miss .rev-label{color:var(--red);font-weight:600}
+  .rev-row .rev-label{color:var(--text);flex:1;font-weight:500}
+  .rev-row .rev-value{color:var(--text-s);font-size:16px;text-align:right;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rev-summary{margin-top:16px;padding:12px 16px;border-radius:var(--rs);font-size:17px;font-weight:600}
+  .rev-summary.ok{background:var(--sage-p);border:1px solid var(--sage-l);color:var(--sage-d)}
+  .rev-summary.miss{background:var(--blush-p);border:1px solid var(--blush-l);color:#883030}
+  .rev-actions{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-top:24px;padding-top:18px;border-top:1px solid var(--brd-s)}
+  .rev-btn{padding:12px 28px;border-radius:var(--rs);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--brd);background:var(--surf);color:var(--text);min-width:120px;white-space:nowrap}
+  .rev-btn:hover{background:var(--bg)}
+  .rev-btn.primary{padding:12px 32px;font-weight:700;background:var(--navy);border-color:var(--navy);color:#fff;letter-spacing:.02em;min-width:140px}
+  .rev-btn.primary:hover{background:#2e3d6e}
+  .rev-btn.primary:disabled{background:var(--steel);border-color:var(--steel);cursor:not-allowed;opacity:.6}
+  /* ---- Success screen ---- */
+  .success-card{max-width:640px;margin:60px auto;padding:48px 40px;background:var(--surf);border:1px solid var(--brd-s);border-radius:14px;box-shadow:0 4px 20px rgba(28,35,64,.06);text-align:center}
+  .success-check{width:72px;height:72px;border-radius:50%;background:var(--sage-p);border:2px solid var(--sage-l);color:var(--sage-d);display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:700;margin:0 auto 20px}
+  .success-title{font-family:'DM Serif Display',serif;font-size:30px;color:var(--navy);margin:0 0 8px}
+  .success-detail{font-size:16px;color:var(--text-m);line-height:1.5;margin:0 auto 8px;max-width:440px}
+  .success-note{font-size:13px;color:var(--text-s);font-style:italic;margin:14px auto 26px;max-width:460px;line-height:1.5}
+  /* ---- Toast ---- */
+  #toast{ position:fixed; bottom:24px; right:24px; background:var(--navy); color:#fff; padding:11px 18px; border-radius:9px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(8px); transition:.2s; z-index:200; pointer-events:none; max-width:340px; }
+  #toast.show{ opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">Rhoback &mdash; Embroidery Request Form</div>
+
+<div class="header">
+  <div class="header-brand">
+    <div class="ridge"><span class="r-red"></span><span class="r-navy"></span></div>
+    <div class="header-title">Embroidery Request</div>
+  </div>
+  <div class="header-right">
+    <div class="header-date" id="headerDate"></div>
+  </div>
+</div>
+
+<main>
+  <!-- ============ FORM VIEW ============ -->
+  <section id="formView">
+    <div class="req-form-wrap">
+      <div style="background:var(--coral-p);border:1px solid var(--coral-l);border-left:5px solid var(--coral);border-radius:var(--rs);padding:12px 16px;margin-bottom:20px;font-size:15px;color:#883030;line-height:1.5">
+        <strong>&#9888; One form per logo, please.</strong> Submit a separate request for each individual logo &mdash; each one is tracked as its own task. Do not combine multiple logos in a single submission.
+      </div>
+
+      <!-- Who is submitting (ADMIN: Noelle submits on behalf of a rep) -->
+      <div class="req-form-section">Who Is Submitting</div>
+      <div class="req-field-row">
+        <div class="req-field">
+          <label>Submitted By</label>
+          <input class="req-input" id="reqSubmittedBy" value="Noelle Thompson" readonly style="color:var(--text-s);background:var(--bg)">
+        </div>
+        <div class="req-field" id="reqOnBehalfField">
+          <label>Submitting on Behalf of <span class="req-req">*</span></label>
+          <select class="req-input" id="reqRep" onchange="populateAccounts()">
+            <option value="">Select a rep...</option>
+            <!-- PLACEHOLDER: rep list is populated from REP_ACCOUNTS in the script (sample data). -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Logo info -->
+      <div class="req-form-section">Logo Info</div>
+      <div class="req-field-row">
+        <div class="req-field">
+          <label>Account <span class="req-req">*</span></label>
+          <select class="req-input" id="reqAccount"><option value="">Select a rep first...</option></select>
+        </div>
+        <div class="req-field">
+          <label>Logo / Design Name <span class="req-req">*</span></label>
+          <input class="req-input" id="reqLogo" type="text" placeholder="e.g. Mountain Peak Logo">
+        </div>
+      </div>
+
+      <!-- Request Type -->
+      <div class="req-form-section">Request Type <span class="req-req">*</span></div>
+      <div class="req-card-group" style="margin-bottom:8px">
+        <div class="req-card-when">Use when: customer provides DST</div>
+        <div class="req-card-when">Use when: artwork needs to be converted to DST</div>
+      </div>
+      <div class="req-card-group">
+        <div class="req-card" id="reqCard-sewout" onclick="selectReqType('sewout')">
+          <div class="req-card-title">Sew-Out <span style="font-weight:400;font-size:12px;opacity:.75">&rarr; Barrett</span></div>
+          <div class="req-card-desc">Customer provided DST &mdash; ready to sew-out. No digitizing or only <em>minor</em> edits needed.</div>
+        </div>
+        <div class="req-card" id="reqCard-digitize" onclick="selectReqType('digitize')">
+          <div class="req-card-title">Digitize <span style="font-weight:400;font-size:13px;opacity:.75">&rarr; VLead or Abcoln</span></div>
+          <div class="req-card-desc">No DST file exists, DST needs edits, resize, or new creation from artwork (AI, PNG, PDF, etc.)</div>
+          <div id="reqSizeBlock" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd-s);display:none" onclick="event.stopPropagation()">
+            <label style="display:block;font-size:14px;font-weight:600;color:var(--text-m);margin-bottom:6px">Size <span class="req-req">*</span> <span style="font-weight:600;color:#b07d00;font-size:13px;font-style:italic">&mdash; enter at least one dimension</span></label>
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <div style="flex:1">
+                <div style="font-size:11px;font-weight:600;color:var(--text-s);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Height</div>
+                <div style="position:relative">
+                  <input class="req-input" id="reqHeight" type="text" inputmode="decimal" placeholder="0.00" oninput="numericInput(this)" onblur="formatDimension(this)" style="padding-right:36px">
+                  <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--text-s);pointer-events:none;font-weight:500">in</span>
+                </div>
+              </div>
+              <div style="font-size:20px;color:var(--text-s);padding-bottom:10px;font-weight:300">&times;</div>
+              <div style="flex:1">
+                <div style="font-size:11px;font-weight:600;color:var(--text-s);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Width</div>
+                <div style="position:relative">
+                  <input class="req-input" id="reqWidth" type="text" inputmode="decimal" placeholder="0.00" oninput="numericInput(this)" onblur="formatDimension(this)" style="padding-right:36px">
+                  <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--text-s);pointer-events:none;font-weight:500">in</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Digitize Details (conditional) -->
+      <div class="req-cond-block amber" id="reqDigitizeBlock" style="display:none">
+        <div class="req-cond-label">Digitize Details</div>
+        <div style="background:#fff;border:1px solid var(--amb-l);border-radius:var(--rs);padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--text);line-height:1.5">
+          <strong>$75 digitizing fee applies.</strong> Please select the current invoice stage below.
+        </div>
+        <div class="req-field" style="margin-bottom:12px">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m)">Fee Status <span class="req-req">*</span></label>
+          <select class="req-input" id="reqFeeStatus" style="margin-top:4px;max-width:280px">
+            <option value="">Select option&hellip;</option>
+            <option>Needs Invoice</option>
+            <option>Invoiced</option>
+            <option>Paid</option>
+            <option>Waived</option>
+          </select>
+        </div>
+        <div style="font-size:13px;color:#5a4a78;background:var(--lav-p);border:1px solid var(--lav-l);border-radius:var(--rs);padding:10px 14px;line-height:1.5">
+          <strong>&#128161; For best results:</strong> Include high-resolution PNGs and/or vector files (AI, EPS, SVG) of the logo. The highest resolution image or vector produces the cleanest digitizing.
+        </div>
+      </div>
+
+      <!-- Color Type -->
+      <div class="req-color-section" style="position:relative;margin-top:52px">
+        <div class="req-form-section">Color Type <span class="req-req">*</span></div>
+        <div class="req-field-row" style="margin-bottom:14px">
+          <div class="req-field">
+            <label>Number of Thread Colors <span class="req-req">*</span></label>
+            <select class="req-input" id="reqThreadCount" onchange="updateReqPreview()">
+              <option value="">Select...</option>
+              <option>1 color</option>
+              <option>2 colors</option>
+              <option>3 colors</option>
+              <option>4 colors</option>
+              <option>5 colors</option>
+              <option>6+ colors</option>
+              <option>Varies</option>
+              <option>N/A &mdash; Club Colors</option>
+            </select>
+            <div id="reqThreadCountHint" style="font-size:12px;color:var(--text-s);margin-top:4px;font-style:italic;display:none">Auto-set to "N/A &mdash; Club Colors" since Club Colors is selected.</div>
+          </div>
+          <div class="req-field"></div>
+        </div>
+        <div style="position:relative">
+          <div class="req-card-group">
+            <div class="req-card" id="reqCard-club" onclick="selectColorType('club')">
+              <div class="req-card-title">Club Colors</div>
+              <div class="req-card-desc">Specific club colors &mdash; matched to Madeira Polyneon 40 weight. Can eyedrop PNG/image if needed.</div>
+            </div>
+            <div class="req-card" id="reqCard-coordinate" onclick="selectColorType('coordinate')">
+              <div class="req-card-title">Color Coordinate</div>
+              <div class="req-card-desc">Coordinate with elements &mdash; e.g. match the dog logo, match the ridge, match the collar.</div>
+            </div>
+            <div class="req-card" id="reqCard-tonal" onclick="selectColorType('tonal')">
+              <div class="req-card-title">Tonal</div>
+              <div class="req-card-desc">Blends with garment &mdash; e.g. match shirt color, tone-on-tone with collar or ridge.</div>
+            </div>
+            <div class="req-card" id="reqCard-other" onclick="selectColorType('other')">
+              <div class="req-card-title">Other / Special</div>
+              <div class="req-card-desc">Multiple types, varies by order, or none of the above. Add details below.</div>
+            </div>
+          </div>
+          <div class="req-side-panel" id="reqColorHint">
+            <div class="req-side-panel-icon">&#9432;</div>
+            <div class="req-side-panel-text" id="reqColorHintText">Describe color sequence &mdash; which part gets which color (e.g. "Border is white, fill is pink", "Match the dog logo"). Include special placement instructions.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thread Color Notes -->
+      <div class="req-field-row full" style="margin-bottom:14px">
+        <div class="req-field">
+          <div class="req-sub-row">
+            <div class="req-form-section">Thread Color Notes <span class="req-req">*</span></div>
+            <div class="req-summary-chip" id="reqSummaryChip" style="display:none"><span id="reqSummaryChipText"></span></div>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:#883030;background:var(--blush-p);border:1px solid var(--blush-l);border-radius:var(--rs);padding:11px 14px;margin-bottom:8px;line-height:1.5">&#9888; Please be as descriptive as possible and include examples if you have them.</div>
+          <textarea class="req-input req-textarea" id="reqColorNotes" placeholder="e.g. Border white, fill pink, text black. Match collar on back." style="min-height:90px"></textarea>
+        </div>
+      </div>
+
+      <!-- Start date -->
+      <div class="req-form-section">Does This Logo Have a Start Date? <span class="req-req">*</span></div>
+      <div style="font-size:13px;color:#286070;background:var(--sky-p);border:1px solid var(--sky-l);border-radius:var(--rs);padding:10px 14px;margin-bottom:10px;line-height:1.5">
+        <strong>Workflow priority:</strong> Sew-outs with orders on-hand are completed first, then new account sew-outs. If no order exists, do not include an in-hand date &mdash; we'll still complete it ASAP, but this lets logos with orders waiting go first.
+      </div>
+      <div class="req-yes-no" style="margin-bottom:8px">
+        <div class="req-yn-sub yn-yes">ONLY if there is an order, ATS, or prebook in the system.</div>
+        <div class="req-yn-sub yn-no">No order placed yet &mdash; customer will place an order ASAP once sew-out is received.</div>
+      </div>
+      <!-- Yes/No cards: the follow-up content drops down INSIDE the selected card (like the Digitize size fields) -->
+      <div class="req-yes-no" style="align-items:start">
+        <div class="req-yn-card" id="reqCard-yesdate" onclick="selectStartDate('yes')">
+          <div class="req-yn-title">Yes</div>
+          <div id="reqStartDateInner" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--brd-s);text-align:left" onclick="event.stopPropagation()">
+            <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);margin-bottom:4px">Order Start Date <span class="req-req">*</span></label>
+            <input class="req-input" id="reqStartDate" type="date" style="max-width:220px" onchange="checkStartDateRush()">
+            <div id="reqWeekendWarning" style="font-size:13px;font-weight:600;color:#883030;background:var(--coral-p);border:1px solid var(--coral-l);border-radius:var(--rs);padding:9px 13px;margin-top:8px;line-height:1.4;display:none">&#9888; Please select a business day (Mon-Fri).</div>
+            <div id="reqStartDateWarning" style="font-size:13px;font-weight:600;color:#883030;background:var(--coral-p);border:1px solid var(--coral-l);border-radius:var(--rs);padding:9px 13px;margin-top:8px;line-height:1.4;display:none">&#9888; Heads up &mdash; this start date is within 4 days. Please coordinate with the embroidery specialist to ensure on-time completion.</div>
+          </div>
+        </div>
+        <div class="req-yn-card" id="reqCard-nodate" onclick="selectStartDate('no')">
+          <div class="req-yn-title">No</div>
+          <div id="reqNoUrgencyInner" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--brd-s);text-align:left" onclick="event.stopPropagation()">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Will a prebook or At Once order be entered within ~5 business days?</div>
+            <div class="req-yes-no">
+              <div class="req-yn-card" id="reqCard-urgentYes" onclick="event.stopPropagation();selectNoUrgency('yes')"><div class="req-yn-title">Yes</div></div>
+              <div class="req-yn-card" id="reqCard-urgentNo" onclick="event.stopPropagation();selectNoUrgency('no')"><div class="req-yn-title">No</div></div>
+            </div>
+            <div id="reqUrgentTargetNote" style="display:none;font-size:13px;font-weight:600;color:#286070;background:var(--sky-p);border:1px solid var(--sky-l);border-radius:var(--rs);padding:9px 13px;margin-top:12px">
+              &#9888; Only answer Yes if a prebook or At Once order will truly be entered within ~5 business days, which would be <span id="reqUrgentTargetDate" style="font-weight:700"></span>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Files -->
+      <div class="req-form-section">Logo Files &amp; Attachments <span class="req-req">*</span></div>
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:8px">Upload DST, logo images, reference files, or any supporting documents. Accepted: .dst, .png, .jpg, .pdf, .ai, .eps, .svg &mdash; Max 10 MB per file</div>
+      <div class="req-drop-zone" onclick="document.getElementById('reqFileInput').click()">
+        <div class="req-drop-icon">&#128206;</div>
+        <div class="req-drop-label">Click to browse or drag files here</div>
+        <div class="req-drop-sub">Max 10 MB per file</div>
+        <input type="file" id="reqFileInput" multiple accept=".dst,.png,.jpg,.jpeg,.pdf,.ai,.eps,.svg" style="display:none" onchange="handleReqFiles(this)">
+      </div>
+      <div id="reqFileList" style="margin-top:8px"></div>
+
+      <!-- Additional Notes (optional) -->
+      <div class="req-form-section">Additional Notes</div>
+      <div style="font-size:13px;color:var(--text-s);font-style:italic;margin-bottom:4px">Optional</div>
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:6px">Placement details, special instructions, garment style info, or any other context for the embroidery team.</div>
+      <textarea class="req-input req-textarea" id="reqNotes" placeholder="e.g., Logo goes on left chest, match PMS 281 navy, customer wants 3.5in wide max&hellip;" style="min-height:80px"></textarea>
+
+      <!-- Buttons -->
+      <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid var(--brd-s)">
+        <button class="req-clear-btn" onclick="clearReqForm()">Clear</button>
+        <button class="req-submit-btn" onclick="submitRequest()">Review &amp; Submit &rarr;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SUCCESS VIEW ============ -->
+  <section id="successView" style="display:none">
+    <div class="success-card">
+      <div class="success-check">&#10003;</div>
+      <h2 class="success-title">Request Submitted</h2>
+      <p class="success-detail" id="successDetail"></p>
+      <p class="success-note">This is a front-end demo &mdash; the request has not yet been sent anywhere. Once connected to NetSuite, submitting will create the request record and notify the embroidery team automatically.</p>
+      <button class="req-submit-btn" onclick="resetToForm()">Submit Another Request</button>
+    </div>
+  </section>
+</main>
+
+<!-- ============ REVIEW & SUBMIT MODAL ============ -->
+<div class="modal-overlay" id="reviewOverlay" onclick="if(event.target===this)closeReviewModal()">
+  <div class="rev-modal">
+    <div class="rev-modal-title">Review &amp; Submit</div>
+    <div class="rev-list" id="reviewList"></div>
+    <div class="rev-actions">
+      <button class="rev-btn" onclick="closeReviewModal()">&larr; Go back</button>
+      <button class="rev-btn primary" id="reviewConfirmBtn" onclick="confirmSubmit()">Confirm &amp; Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============================================================================
+//  EMBROIDERY REQUEST FORM — ADMIN VERSION (front-end only, not connected)
+// ============================================================================
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function val(id){ var el = document.getElementById(id); return el ? (el.value||'').trim() : ''; }
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+// ----------------------------------------------------------------------------
+//  PLACEHOLDER DATA — replace with a NetSuite lookup.
+//  Maps each sales rep to the accounts assigned to them. In production this
+//  should be pulled from NetSuite (reps and their customers), not hardcoded.
+// ----------------------------------------------------------------------------
+var REP_ACCOUNTS = {
+  'Sales Rep One':   ['Sample Account A', 'Sample Account B', 'Sample Account C'],
+  'Sales Rep Two':   ['Sample Account D', 'Sample Account E'],
+  'Sales Rep Three': ['Sample Account F', 'Sample Account G', 'Sample Account H']
+};
+
+var _reqType=null, _reqColorType=null, _reqStartDate=null, _noUrgency=null;
+var _colorHints={
+  club:{hint:'List all club colors using PMS colors or thread color names/numbers (e.g. Navy PMS 289, White). All converted to closest Madeira Polyneon 40 weight equivalent.',ph:'e.g. Navy PMS 289, White, Gold PMS 124'},
+  coordinate:{hint:'Describe color sequence — which part gets which color (e.g. "Border is white, fill is pink", "Match the dog logo"). Include special placement instructions.',ph:'e.g. Border white, fill pink, text black. Match collar on back.'},
+  tonal:{hint:'Describe approach (e.g. "Match shirt color", "Tone-on-tone with collar").',ph:'e.g. Match shirt color, tone-on-tone navy'},
+  other:{hint:'Describe color requirements in detail. Include special instructions or combinations.',ph:'Describe color requirements...'}
+};
+var _countWords={'1 color':'One','2 colors':'Two','3 colors':'Three','4 colors':'Four','5 colors':'Five','6+ colors':'Six+','Varies':'Varies','N/A — Club Colors':''};
+
+// The rep the request is for = the "on behalf of" selection (admin submits for a rep).
+function effectiveRep(){ return val('reqRep'); }
+
+function numericInput(el){ el.value = el.value.replace(/[^\d.]/g,'').replace(/(\..*?)\..*/g,'$1'); }
+function formatDimension(el){ var v = parseFloat(el.value); if(!isNaN(v) && el.value!=='') el.value = v.toFixed(2); }
+function selectReqType(t){
+  _reqType=t;
+  ['sewout','digitize'].forEach(function(v){ document.getElementById('reqCard-'+v).classList.toggle('selected',v===t); });
+  document.getElementById('reqDigitizeBlock').style.display = t==='digitize'?'':'none';
+  document.getElementById('reqSizeBlock').style.display = t==='digitize'?'':'none';
+  if(t!=='digitize'){ ['reqHeight','reqWidth'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); }
+}
+function selectColorType(t){
+  _reqColorType=t;
+  ['club','coordinate','tonal','other'].forEach(function(v){ document.getElementById('reqCard-'+v).classList.toggle('selected',v===t); });
+  var info=_colorHints[t];
+  var hintEl=document.getElementById('reqColorHint');
+  var hintTextEl=document.getElementById('reqColorHintText');
+  var noteEl=document.getElementById('reqColorNotes');
+  if(info){ hintTextEl.textContent=info.hint; hintEl.classList.add('show'); noteEl.placeholder=info.ph; }
+  var tcEl=document.getElementById('reqThreadCount');
+  var tcHint=document.getElementById('reqThreadCountHint');
+  if(t==='club'){
+    tcEl.value='N/A — Club Colors'; tcEl.disabled=true; tcEl.style.background='var(--bg)'; tcEl.style.color='var(--text-s)';
+    if(tcHint) tcHint.style.display='';
+  } else {
+    if(tcEl.value==='N/A — Club Colors') tcEl.value='';
+    tcEl.disabled=false; tcEl.style.background=''; tcEl.style.color='';
+    if(tcHint) tcHint.style.display='none';
+  }
+  updateReqPreview();
+}
+function updateReqPreview(){
+  var chipLabel={club:'Club Colors',coordinate:'Color Coordinate',tonal:'Color Tonal',other:'Color Other / Special'}[_reqColorType]||'';
+  var tc=(document.getElementById('reqThreadCount')||{}).value||'';
+  var chip=document.getElementById('reqSummaryChip');
+  var chipText=document.getElementById('reqSummaryChipText');
+  if(!chip || !chipText) return;
+  if(chipLabel && tc){ var word=_countWords[tc]||''; chipText.textContent=(word?word+' ':'')+chipLabel; chip.style.display=''; }
+  else { chip.style.display='none'; }
+}
+function checkStartDateRush(){
+  var el=document.getElementById('reqStartDate');
+  var dateStr=(el||{}).value||'';
+  var warn=document.getElementById('reqStartDateWarning');
+  var wknd=document.getElementById('reqWeekendWarning');
+  if(!dateStr){ warn.style.display='none'; if(wknd) wknd.style.display='none'; return; }
+  var p=dateStr.split('-'); var target=new Date(+p[0], (+p[1])-1, +p[2]); target.setHours(0,0,0,0);
+  // Reps can't pick weekends — clear the selection and prompt for a weekday.
+  var dow=target.getDay();
+  if(dow===0 || dow===6){
+    if(wknd) wknd.style.display='';
+    warn.style.display='none';
+    if(el) el.value='';
+    return;
+  }
+  if(wknd) wknd.style.display='none';
+  var today=new Date(); today.setHours(0,0,0,0);
+  var diffDays=Math.round((target-today)/86400000);
+  warn.style.display=(diffDays<=4)?'':'none';
+}
+function selectStartDate(v){
+  _reqStartDate=v;
+  document.getElementById('reqCard-yesdate').classList.toggle('selected',v==='yes');
+  document.getElementById('reqCard-nodate').classList.toggle('selected',v==='no');
+  // Content drops down INSIDE the selected card (like the Digitize size fields).
+  document.getElementById('reqStartDateInner').style.display=v==='yes'?'':'none';
+  document.getElementById('reqNoUrgencyInner').style.display=v==='no'?'':'none';
+  if(v!=='yes'){
+    var sd=document.getElementById('reqStartDate'); if(sd) sd.value='';
+    var w1=document.getElementById('reqWeekendWarning'); if(w1) w1.style.display='none';
+    var w2=document.getElementById('reqStartDateWarning'); if(w2) w2.style.display='none';
+  }
+  if(v!=='no'){
+    _noUrgency=null;
+    document.getElementById('reqCard-urgentYes').classList.remove('selected');
+    document.getElementById('reqCard-urgentNo').classList.remove('selected');
+    document.getElementById('reqUrgentTargetNote').style.display='none';
+  }
+}
+function selectNoUrgency(v){
+  _noUrgency=v;
+  document.getElementById('reqCard-urgentYes').classList.toggle('selected',v==='yes');
+  document.getElementById('reqCard-urgentNo').classList.toggle('selected',v==='no');
+  var note=document.getElementById('reqUrgentTargetNote');
+  if(v==='yes'){ document.getElementById('reqUrgentTargetDate').textContent=fmtDate(computeUrgentTarget()); note.style.display=''; }
+  else { note.style.display='none'; }
+}
+// ~5 business days from today (skips weekends). Used to auto-set the target start
+// date for urgent no-order requests.
+function computeUrgentTarget(){
+  var d=new Date(); var added=0;
+  while(added<5){ d.setDate(d.getDate()+1); var dow=d.getDay(); if(dow!==0 && dow!==6) added++; }
+  return d;
+}
+function fmtDate(d){ return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); }
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Populate the Account dropdown from the selected rep's accounts (PLACEHOLDER data).
+function populateAccounts(){
+  var rep=effectiveRep();
+  var acctSel=document.getElementById('reqAccount');
+  if(!rep){ acctSel.innerHTML='<option value="">Select a rep first...</option>'; return; }
+  var accounts=REP_ACCOUNTS[rep]||[];
+  acctSel.innerHTML='<option value="">Select account...</option>'+accounts.map(function(a){ return '<option>'+esc(a)+'</option>'; }).join('');
+}
+// Populate the rep dropdown from REP_ACCOUNTS keys (PLACEHOLDER data).
+function populateRepDropdown(){
+  var sel=document.getElementById('reqRep');
+  if(!sel) return;
+  sel.innerHTML='<option value="">Select a rep...</option>'+Object.keys(REP_ACCOUNTS).map(function(r){ return '<option>'+esc(r)+'</option>'; }).join('');
+}
+function handleReqFiles(input){
+  var list=document.getElementById('reqFileList');
+  list.innerHTML='';
+  [].slice.call(input.files).forEach(function(f){
+    var row=document.createElement('div');
+    row.className='req-file-row';
+    row.innerHTML='<span style="color:var(--text-m);font-weight:500;flex:1">'+esc(f.name)+'</span><span style="color:var(--text-s);font-size:14px">'+(f.size/1024).toFixed(0)+' KB</span>';
+    list.appendChild(row);
+  });
+}
+function clearReqForm(){
+  _reqType=null; _reqColorType=null; _reqStartDate=null; _noUrgency=null;
+  ['sewout','digitize','club','coordinate','tonal','other','yesdate','nodate','urgentYes','urgentNo'].forEach(function(v){ var el=document.getElementById('reqCard-'+v); if(el) el.classList.remove('selected'); });
+  ['reqDigitizeBlock','reqSizeBlock','reqStartDateInner','reqNoUrgencyInner','reqUrgentTargetNote'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('reqColorHint').classList.remove('show');
+  var chip=document.getElementById('reqSummaryChip'); if(chip) chip.style.display='none';
+  var warn=document.getElementById('reqStartDateWarning'); if(warn) warn.style.display='none';
+  var wknd=document.getElementById('reqWeekendWarning'); if(wknd) wknd.style.display='none';
+  ['reqRep','reqLogo','reqHeight','reqWidth','reqThreadCount','reqColorNotes','reqStartDate','reqNotes'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  var tcEl=document.getElementById('reqThreadCount'); if(tcEl){ tcEl.disabled=false; tcEl.style.background=''; tcEl.style.color=''; }
+  var tcHint=document.getElementById('reqThreadCountHint'); if(tcHint) tcHint.style.display='none';
+  var feeSel=document.getElementById('reqFeeStatus'); if(feeSel) feeSel.value='';
+  var fi=document.getElementById('reqFileInput'); if(fi) fi.value='';
+  document.getElementById('reqFileList').innerHTML='';
+  populateAccounts();
+}
+function _reqChecklist(){
+  var rep=effectiveRep();
+  var account=val('reqAccount');
+  var logo=val('reqLogo');
+  var hVal=val('reqHeight');
+  var wVal=val('reqWidth');
+  var sizeFilled=_reqType==='digitize' ? !!(hVal||wVal) : (_reqType==='sewout');
+  var sizeValue=_reqType==='sewout' ? 'DST provided' : (hVal && wVal ? hVal+' × '+wVal+' in' : hVal ? hVal+' in (H)' : wVal ? wVal+' in (W)' : '');
+  var threadCount=val('reqThreadCount');
+  var colorNotes=val('reqColorNotes');
+  var startDate=val('reqStartDate');
+  var reqTypeLabel=_reqType==='sewout'?'Sew-Out':_reqType==='digitize'?'Digitize':'';
+  var colorTypeLabel={club:'Club Colors',coordinate:'Color Coordinate',tonal:'Tonal',other:'Other / Special'}[_reqColorType]||'';
+  var feeStatus=val('reqFeeStatus');
+  var files=(document.getElementById('reqFileInput')||{}).files||[];
+  var items=[
+    {label:'Sales Rep', filled:!!rep, value:rep},
+    {label:'Account', filled:!!account, value:account},
+    {label:'Logo / Design Name', filled:!!logo, value:logo},
+    {label:'Request Type', filled:!!_reqType, value:reqTypeLabel},
+    {label:'Size', filled:sizeFilled, value:sizeValue},
+    {label:'Number of Thread Colors', filled:!!threadCount, value:threadCount},
+    {label:'Color Type', filled:!!_reqColorType, value:colorTypeLabel},
+    {label:'Thread Color Notes', filled:!!colorNotes.trim(), value:colorNotes?(colorNotes.length>40?colorNotes.slice(0,40)+'…':colorNotes):''},
+    {label:'Start Date Answer', filled:!!_reqStartDate, value:_reqStartDate==='yes'?('Yes — '+(startDate||'date missing')):_reqStartDate==='no'?'No':''},
+    {label:'Files Attached', filled:files.length>0, value:files.length?files.length+' file'+(files.length>1?'s':''):''}
+  ];
+  if(_reqType==='digitize'){ items.push({label:'Fee Status', filled:!!feeStatus, value:feeStatus}); }
+  if(_reqStartDate==='no'){
+    items.push({label:'Prebook / At Once within 5 days?', filled:!!_noUrgency, value:_noUrgency==='yes'?'Yes — urgent':_noUrgency==='no'?'No — regular':''});
+  }
+  if(_reqStartDate==='yes' && !startDate){ var sd=items.find(function(i){return i.label==='Start Date Answer';}); if(sd) sd.filled=false; }
+  return items;
+}
+function submitRequest(){
+  var items=_reqChecklist();
+  var list=document.getElementById('reviewList');
+  list.innerHTML='';
+  items.forEach(function(it){
+    var row=document.createElement('div');
+    row.className='rev-row'+(it.filled?'':' miss');
+    row.innerHTML='<div class="rev-icon '+(it.filled?'ok':'miss')+'">'+(it.filled?'✓':'⚠️')+'</div>'+
+      '<div class="rev-label">'+esc(it.label)+'</div>';
+    list.appendChild(row);
+  });
+  var missing=items.filter(function(i){return !i.filled;});
+  document.getElementById('reviewConfirmBtn').disabled = missing.length>0;
+  document.getElementById('reviewOverlay').classList.add('open');
+}
+function closeReviewModal(){ document.getElementById('reviewOverlay').classList.remove('open'); }
+
+// ----------------------------------------------------------------------------
+//  Assemble the full submission into a single payload object. This is the data
+//  model the backend / NetSuite integration should consume.
+// ----------------------------------------------------------------------------
+function collectPayload(){
+  var hVal=val('reqHeight'), wVal=val('reqWidth');
+  var files=(document.getElementById('reqFileInput')||{}).files||[];
+  return {
+    submittedBy: 'Noelle Thompson',          // ADMIN variant: fixed submitter
+    onBehalfOfRep: effectiveRep(),           // the rep the request is for
+    account: val('reqAccount'),
+    logoName: val('reqLogo'),
+    requestType: _reqType,                   // 'sewout' | 'digitize'
+    size: _reqType==='sewout' ? 'DST provided' : (hVal && wVal ? hVal+' x '+wVal+' in' : hVal ? hVal+' in (H)' : wVal ? wVal+' in (W)' : ''),
+    height: hVal, width: wVal,
+    feeStatus: _reqType==='digitize' ? val('reqFeeStatus') : '',
+    threadCount: val('reqThreadCount'),
+    colorType: _reqColorType,                // 'club' | 'coordinate' | 'tonal' | 'other'
+    colorNotes: val('reqColorNotes'),
+    hasStartDate: _reqStartDate,             // 'yes' | 'no'
+    // Start-date / urgency logic:
+    //  • start date = Yes             → scheduled, use the entered date
+    //  • No + prebook within 5 days   → urgent, auto-set start date ~5 business days out
+    //  • No + not within 5 days       → standard, no date (complete ASAP, lower priority)
+    startDate: _reqStartDate==='yes' ? val('reqStartDate') : ((_reqStartDate==='no' && _noUrgency==='yes') ? ymd(computeUrgentTarget()) : ''),
+    prebookOrAtOnceWithin5Days: _reqStartDate==='no' ? (_noUrgency||'') : '',   // 'yes' | 'no' | ''
+    urgency: _reqStartDate==='yes' ? 'scheduled' : (_reqStartDate==='no' && _noUrgency==='yes') ? 'urgent' : (_reqStartDate==='no' && _noUrgency==='no') ? 'standard' : '',
+    startDateAutoSet: (_reqStartDate==='no' && _noUrgency==='yes'),
+    // NOTE: file CONTENTS are not captured here — only name/size. Real upload
+    // must be handled by the backend (NetSuite attachment, etc.).
+    files: [].slice.call(files).map(function(f){ return { name:f.name, size:f.size }; }),
+    notes: val('reqNotes'),
+    submittedAt: new Date().toISOString()
+  };
+}
+
+// ============================================================================
+//  INTEGRATION POINT — NOT YET CONNECTED
+//  ------------------------------------------------------------------
+//  This form is intentionally front-end only. Wire this function up to the
+//  backend / NetSuite here. Confirmed options:
+//    • NetSuite SuiteFlow: "After Record Submit" → Send Email action (+template)
+//    • NetSuite Online Form: "Notify by Email" field
+//    • Or create a custom record via SuiteScript / REST, then notify.
+//  `payload` (logged below) is the full submission data model from
+//  collectPayload(). Return true on success.
+// ============================================================================
+function submitToBackend(payload){
+  console.log('[EMB REQUEST] submission payload (not sent — front-end only):', payload);
+  return true;
+}
+
+function confirmSubmit(){
+  var payload=collectPayload();
+  var ok=submitToBackend(payload);
+  closeReviewModal();
+  if(ok){
+    var detail=document.getElementById('successDetail');
+    detail.innerHTML='<strong>'+esc(payload.logoName||'Logo')+'</strong> for <strong>'+esc(payload.account||'account')+'</strong> ('+esc(payload.onBehalfOfRep||'rep')+') has been logged.';
+    document.getElementById('formView').style.display='none';
+    document.getElementById('successView').style.display='';
+    window.scrollTo(0,0);
+    toast('Request submitted (demo)');
+  }
+}
+function resetToForm(){
+  clearReqForm();
+  document.getElementById('successView').style.display='none';
+  document.getElementById('formView').style.display='';
+  window.scrollTo(0,0);
+}
+
+// ---- Init ----
+populateRepDropdown();
+populateAccounts();
+(function(){ var el=document.getElementById('headerDate'); if(el){ el.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); } })();
+</script>
+</body>
+</html>
