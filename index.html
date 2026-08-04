@@ -328,13 +328,13 @@
         <div class="req-yn-card" id="reqCard-nodate" onclick="selectStartDate('no')">
           <div class="req-yn-title">No</div>
           <div id="reqNoUrgencyInner" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--brd-s);text-align:left" onclick="event.stopPropagation()">
-            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Will a prebook or At Once order be entered within ~5 business days?</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Will a prebook or At Once order be entered within ~5 <u>business</u> days?</div>
             <div class="req-yes-no">
               <div class="req-yn-card" id="reqCard-urgentYes" onclick="event.stopPropagation();selectNoUrgency('yes')"><div class="req-yn-title">Yes</div></div>
               <div class="req-yn-card" id="reqCard-urgentNo" onclick="event.stopPropagation();selectNoUrgency('no')"><div class="req-yn-title">No</div></div>
             </div>
             <div id="reqUrgentTargetNote" style="display:none;font-size:13px;font-weight:600;color:#286070;background:var(--sky-p);border:1px solid var(--sky-l);border-radius:var(--rs);padding:9px 13px;margin-top:12px">
-              &#9888; Only answer Yes if a prebook or At Once order will truly be entered within ~5 business days, which would be <span id="reqUrgentTargetDate" style="font-weight:700"></span>.
+              &#9888; Only answer Yes if a prebook or At Once order will truly be entered within ~5 <u>business</u> days, which would be <span id="reqUrgentTargetDate" style="font-weight:700"></span>.
             </div>
           </div>
         </div>
