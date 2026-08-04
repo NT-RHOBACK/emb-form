@@ -627,8 +627,18 @@ function collectPayload(){
     // must be handled by the backend (NetSuite attachment, etc.).
     files: [].slice.call(files).map(function(f){ return { name:f.name, size:f.size }; }),
     notes: val('reqNotes'),
-    submittedAt: new Date().toISOString()
+    submittedAt: _fmtDateTime(new Date())   // friendly local time, e.g. 08/03/2026 3:50pm
   };
+}
+
+// Format a Date as MM/DD/YYYY h:mmam/pm in local time (e.g. 08/03/2026 3:50pm)
+function _fmtDateTime(d){
+  var mm=d.getMonth()+1, dd=d.getDate(), yyyy=d.getFullYear();
+  var h=d.getHours(), m=d.getMinutes();
+  var ampm = h>=12 ? 'pm' : 'am';
+  h = h%12; if(h===0) h=12;
+  var pad=function(n){ return n<10 ? '0'+n : ''+n; };
+  return pad(mm)+'/'+pad(dd)+'/'+yyyy+' '+h+':'+pad(m)+ampm;
 }
 
 // ============================================================================
