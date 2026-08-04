@@ -371,7 +371,7 @@
       <div class="success-check">&#10003;</div>
       <h2 class="success-title">Request Submitted</h2>
       <p class="success-detail" id="successDetail"></p>
-      <p class="success-note">A pre-filled email draft should have opened in your mail app. <strong>Attach the logo / DST files and click Send</strong> to submit the request &mdash; the email is not sent until you do. If no draft opened, check that a default mail app is set.</p>
+      <p class="success-note" id="successNote">A pre-filled email draft should have opened in your mail app. <strong>Attach the logo / DST files and click Send</strong> to submit the request &mdash; the email is not sent until you do. If no draft opened, check that a default mail app is set.</p>
       <button class="req-submit-btn" onclick="resetToForm()">Submit Another Request</button>
     </div>
   </section>
@@ -632,20 +632,53 @@ function collectPayload(){
 }
 
 // ============================================================================
-//  EMAIL DELIVERY (mailto:)
+//  SUBMISSION DELIVERY
 //  ------------------------------------------------------------------
-//  On submit, this builds a fixed-format plain-text email and opens it as a
-//  pre-filled draft in the user's default mail client (Outlook). The user
-//  reviews, attaches the actual logo/DST files (mailto cannot carry
-//  attachments), and clicks Send.
+//  Two modes, chosen automatically:
 //
-//  RECIPIENTS:
-//    • PRIMARY_TO  — the "To:" address.
+//  1. POWER AUTOMATE (preferred) — if FLOW_URL below is filled in, the form
+//     POSTs the full submission (fields + files as base64) to a Power Automate
+//     flow. The flow emails Noelle with the files attached (and can also log a
+//     row to Excel). Files ride along automatically — no manual attaching.
 //
-//  A later upgrade path (NetSuite SuiteFlow send-email, or a REST record) can
-//  replace openMailDraft() without touching the rest of the form.
+//  2. MAILTO FALLBACK — if FLOW_URL is still empty, the form opens a
+//     pre-filled email draft in the user's mail client (Outlook). This carries
+//     the text only; files cannot be attached via mailto. This keeps the form
+//     working until the flow is set up.
+//
+//  >>> TO GO LIVE WITH POWER AUTOMATE: paste your flow's "HTTP POST URL" into
+//  >>> FLOW_URL below (from the "When an HTTP request is received" trigger).
 // ============================================================================
 var PRIMARY_TO = 'noelle.thompson@rhoback.com';
+var FLOW_URL   = '';   // <-- paste the Power Automate HTTP POST URL here
+
+var MAX_TOTAL_BYTES = 20 * 1024 * 1024;  // guard: total attachment size for flow POST
+
+// Read one File as { name, size, contentBytes } where contentBytes is raw base64.
+function _fileToBase64(file){
+  return new Promise(function(resolve, reject){
+    var r = new FileReader();
+    r.onload  = function(){ var s = String(r.result || ''); var i = s.indexOf('base64,'); resolve({ name:file.name, size:file.size, contentBytes: i >= 0 ? s.slice(i + 7) : s }); };
+    r.onerror = function(){ reject(r.error); };
+    r.readAsDataURL(file);
+  });
+}
+function _collectFileData(){
+  var files = [].slice.call((document.getElementById('reqFileInput') || {}).files || []);
+  return Promise.all(files.map(_fileToBase64));
+}
+
+// Fire-and-forget POST to the flow. Uses text/plain + no-cors so the browser
+// sends it without a CORS preflight (the flow parses the body as JSON).
+function postToFlow(payload){
+  return fetch(FLOW_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify(payload)
+  }).then(function(){ return true; })
+    .catch(function(e){ console.error('[EMB REQUEST] flow POST failed', e); return false; });
+}
 
 function _emailBody(p){
   var L = [];
@@ -680,22 +713,55 @@ function openMailDraft(payload){
   return true;
 }
 
-function submitToBackend(payload){
-  return openMailDraft(payload);
+function _showSuccess(payload, viaFlow){
+  var detail=document.getElementById('successDetail');
+  detail.innerHTML='<strong>'+esc(payload.logoName||'Logo')+'</strong> for <strong>'+esc(payload.account||'account')+'</strong> (submitted by '+esc(payload.submittedBy||'rep')+')'+(viaFlow?' has been submitted.':' is ready to send.');
+  var note=document.getElementById('successNote');
+  if(note){
+    note.innerHTML = viaFlow
+      ? 'Your request'+((payload.files&&payload.files.length)?' and files have':' has')+' been emailed to the embroidery team. No further action needed.'
+      : 'A pre-filled email draft should have opened in your mail app. <strong>Attach the logo / DST files and click Send</strong> to submit the request &mdash; the email is not sent until you do. If no draft opened, check that a default mail app is set.';
+  }
+  document.getElementById('formView').style.display='none';
+  document.getElementById('successView').style.display='';
+  window.scrollTo(0,0);
+  toast(viaFlow ? 'Request submitted' : 'Email draft opened — attach files & send');
 }
 
 function confirmSubmit(){
   var payload=collectPayload();
-  var ok=submitToBackend(payload);
-  closeReviewModal();
-  if(ok){
-    var detail=document.getElementById('successDetail');
-    detail.innerHTML='<strong>'+esc(payload.logoName||'Logo')+'</strong> for <strong>'+esc(payload.account||'account')+'</strong> (submitted by '+esc(payload.submittedBy||'rep')+') is ready to send.';
-    document.getElementById('formView').style.display='none';
-    document.getElementById('successView').style.display='';
-    window.scrollTo(0,0);
-    toast('Email draft opened — attach files & send');
+  var btn=document.getElementById('reviewConfirmBtn');
+
+  // MAILTO fallback (flow not configured yet)
+  if(!FLOW_URL){
+    openMailDraft(payload);
+    closeReviewModal();
+    _showSuccess(payload, false);
+    return;
   }
+
+  // Size guard before encoding files for the flow POST
+  var totalBytes=(payload.files||[]).reduce(function(a,f){ return a+(f.size||0); },0);
+  if(totalBytes > MAX_TOTAL_BYTES){
+    alert('The attached files total more than 20 MB, which is too large to submit through the form. Please reduce the file size, or email the files directly to '+PRIMARY_TO+'.');
+    return;
+  }
+
+  if(btn){ btn.disabled=true; btn.textContent='Submitting…'; }
+  _collectFileData().then(function(fileData){
+    payload.files=fileData;                 // fields keep name/size + add base64 contentBytes
+    return postToFlow(payload);
+  }).then(function(ok){
+    if(btn){ btn.disabled=false; btn.textContent='Confirm & Submit'; }
+    closeReviewModal();
+    if(ok){ _showSuccess(payload, true); }
+    else { alert('Sorry, something went wrong submitting your request. Please try again, or email '+PRIMARY_TO+' directly.'); }
+  }).catch(function(e){
+    console.error('[EMB REQUEST] submit failed', e);
+    if(btn){ btn.disabled=false; btn.textContent='Confirm & Submit'; }
+    closeReviewModal();
+    alert('Sorry, something went wrong submitting your request. Please try again, or email '+PRIMARY_TO+' directly.');
+  });
 }
 function resetToForm(){
   clearReqForm();
