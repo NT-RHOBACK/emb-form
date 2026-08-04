@@ -607,12 +607,12 @@ function collectPayload(){
     submitterEmail: submitterEmail(),        // rep enters their own email
     account: val('reqAccount'),
     logoName: val('reqLogo'),
-    requestType: _reqType,                   // 'sewout' | 'digitize'
+    requestType: (_reqType==='sewout'?'Sew-Out':_reqType==='digitize'?'Digitize':''),   // friendly label
     size: _reqType==='sewout' ? 'DST provided' : (hVal && wVal ? hVal+' x '+wVal+' in' : hVal ? hVal+' in (H)' : wVal ? wVal+' in (W)' : ''),
     height: hVal, width: wVal,
     feeStatus: _reqType==='digitize' ? val('reqFeeStatus') : '',
     threadCount: val('reqThreadCount'),
-    colorType: _reqColorType,                // 'club' | 'coordinate' | 'tonal' | 'other'
+    colorType: ({club:'Club Colors',coordinate:'Color Coordinate',tonal:'Tonal',other:'Other / Special'}[_reqColorType]||''),   // friendly label
     colorNotes: val('reqColorNotes'),
     hasStartDate: _reqStartDate,             // 'yes' | 'no'
     // Start-date / urgency logic:
@@ -698,9 +698,9 @@ function _emailBody(p){
   L.push('Rep Email: ' + (p.submitterEmail || ''));
   L.push('Account: ' + (p.account || ''));
   L.push('Logo / Design Name: ' + (p.logoName || ''));
-  L.push('Request Type: ' + (p.requestType === 'sewout' ? 'Sew-Out' : p.requestType === 'digitize' ? 'Digitize' : ''));
+  L.push('Request Type: ' + (p.requestType || ''));
   L.push('Size: ' + (p.size || ''));
-  if (p.requestType === 'digitize') L.push('Fee Status: ' + (p.feeStatus || ''));
+  if (p.feeStatus) L.push('Fee Status: ' + (p.feeStatus || ''));
   L.push('Thread Colors: ' + (p.threadCount || ''));
   L.push('Color Type: ' + (p.colorType || ''));
   L.push('Color Notes: ' + (p.colorNotes || ''));
