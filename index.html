@@ -602,6 +602,7 @@ function closeReviewModal(){ document.getElementById('reviewOverlay').classList.
 function collectPayload(){
   var hVal=val('reqHeight'), wVal=val('reqWidth');
   var files=(document.getElementById('reqFileInput')||{}).files||[];
+  var _startDateRaw = _reqStartDate==='yes' ? val('reqStartDate') : ((_reqStartDate==='no' && _noUrgency==='yes') ? ymd(computeUrgentTarget()) : '');
   return {
     submittedBy: submitterName(),            // rep enters their own name
     submitterEmail: submitterEmail(),        // rep enters their own email
@@ -619,7 +620,8 @@ function collectPayload(){
     //  • start date = Yes             → scheduled, use the entered date
     //  • No + prebook within 5 days   → urgent, auto-set start date ~5 business days out
     //  • No + not within 5 days       → standard, no date (complete ASAP, lower priority)
-    startDate: _reqStartDate==='yes' ? val('reqStartDate') : ((_reqStartDate==='no' && _noUrgency==='yes') ? ymd(computeUrgentTarget()) : ''),
+    startDate: _fmtDate(_startDateRaw),      // MM/DD/YYYY display
+    tagColor: _tagColor(_startDateRaw),      // triage color from days-until-start (red/yellow/green)
     prebookOrAtOnceWithin5Days: _reqStartDate==='no' ? (_noUrgency||'') : '',   // 'yes' | 'no' | ''
     urgency: _reqStartDate==='yes' ? 'scheduled' : (_reqStartDate==='no' && _noUrgency==='yes') ? 'urgent' : (_reqStartDate==='no' && _noUrgency==='no') ? 'standard' : '',
     startDateAutoSet: (_reqStartDate==='no' && _noUrgency==='yes'),
@@ -639,6 +641,25 @@ function _fmtDateTime(d){
   h = h%12; if(h===0) h=12;
   var pad=function(n){ return n<10 ? '0'+n : ''+n; };
   return pad(mm)+'/'+pad(dd)+'/'+yyyy+' '+h+':'+pad(m)+ampm;
+}
+
+// Format 'YYYY-MM-DD' as MM/DD/YYYY (or '' if none)
+function _fmtDate(ymdStr){
+  if(!ymdStr) return '';
+  var p=String(ymdStr).split('-');
+  return p.length===3 ? p[1]+'/'+p[2]+'/'+p[0] : ymdStr;
+}
+
+// Triage color from days between today and the start date:
+//   red = 4 or fewer days out, yellow = 5-14 days, green = 15+ (or no date set).
+function _tagColor(ymdStr){
+  if(!ymdStr) return 'green';
+  var target=new Date(ymdStr+'T00:00:00');
+  var now=new Date(); now.setHours(0,0,0,0);
+  var days=Math.round((target-now)/86400000);
+  if(days<=4) return 'red';
+  if(days<=14) return 'yellow';
+  return 'green';
 }
 
 // ============================================================================
